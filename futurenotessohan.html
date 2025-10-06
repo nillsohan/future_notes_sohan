@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Neon Notes Quantum — v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070712;
+    --panel: rgba(255,255,255,0.04);
+    --glass-border: rgba(255,255,255,0.06);
+    --accent: #00f0ff;
+    --accent-2:#ff3ec7;
+    --text:#e6eef8;
+    --muted:#9aa7b6;
+  }
+  /* Mood overrides (applied dynamically) */
+  .mood-happy { --accent: #ffd24a; --accent-2:#ff8a00; }
+  .mood-calm  { --accent: #6ae3ff; --accent-2:#6ad1ff; }
+  .mood-focus { --accent: #7efc5f; --accent-2:#38ff9b; }
+  .mood-sad   { --accent: #9aa7ff; --accent-2:#6f8bff; }
+  .mood-angry { --accent: #ff5c5c; --accent-2:#ff9a5c; }
+
+  html,body{height:100%;margin:0;background:radial-gradient(circle at 10% 10%, rgba(0,240,255,0.06), transparent 6%),
+             radial-gradient(circle at 90% 90%, rgba(255,62,199,0.04), transparent 8%), var(--bg);
+             font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  header{
+    padding:24px 32px;
+    display:flex;gap:16px;align-items:center;
+    border-bottom:1px solid rgba(255,255,255,0.03);
+    backdrop-filter: blur(6px);
+  }
+  .logo { font-family: Orbitron, sans-serif; color:var(--accent); font-size:20px; letter-spacing:2px; text-shadow:0 0 12px rgba(0,240,255,0.08);}
+  .sub { color:var(--muted); font-size:13px; margin-left:auto;}
+  .main { display:flex; gap:28px; padding:28px; align-items:flex-start; flex-wrap:wrap; justify-content:center;}
+  .panel {
+    width: 660px;
+    max-width:calc(100vw - 64px);
+    border-radius:14px;
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border:1px solid var(--glass-border);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6), 0 0 40px rgba(0,240,255,0.03);
+    padding:18px;
+    position:relative;
+    overflow:hidden;
+  }
+  /* Parallax layers */
+  .panel::before, .panel::after{
+    content:"";
+    position:absolute; inset:-40% -20% -40% -20%;
+    pointer-events:none;
+    background: radial-gradient(circle at var(--mx,50%) var(--my,50%), rgba(0,240,255,0.04), transparent 8%);
+    transform: translate3d(0,0,0);
+    transition: transform 0.12s linear;
+  }
+  .panel::after{
+    background: radial-gradient(circle at calc(var(--mx,50%) + 20%) calc(var(--my,50%) - 10%), rgba(255,62,199,0.03), transparent 8%);
+  }
+
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .btn {
+    background: linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.04);
+    color:var(--text); padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:600;
+    display:inline-flex; gap:8px; align-items:center; font-size:13px;
+  }
+  .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-2)); color:#051219; box-shadow:0 6px 28px rgba(0,0,0,0.6), 0 0 30px rgba(0,240,255,0.15); }
+  .btn.ghost { border:1px dashed rgba(255,255,255,0.04); background:transparent; }
+  .row { display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap;}
+  .editor {
+    margin-top:12px;
+    min-height:220px;
+    max-height:420px;
+    overflow:auto;
+    padding:16px;
+    color:var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+    border-radius:10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+    border:1px solid rgba(255,255,255,0.02);
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+  }
+  [contenteditable="true"]:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,240,255,0.03); }
+  .meta { display:flex; justify-content:space-between; gap:12px; margin-top:12px; color:var(--muted); font-size:13px;}
+  .right-col {
+    width:340px;
+    max-width:calc(100vw - 64px);
+    display:flex; flex-direction:column; gap:18px;
+  }
+  .card { border-radius:12px; padding:14px; background:var(--panel); border:1px solid var(--glass-border);}
+  .calc-output, .summary-output { min-height:80px; font-family: ui-monospace, monospace; color:var(--accent); white-space:pre-wrap; }
+  .tag { display:inline-block; padding:6px 8px; border-radius:999px; background:rgba(255,255,255,0.02); margin:6px 6px 0 0; font-size:12px; border:1px solid rgba(255,255,255,0.02); color:var(--muted); }
+  .tags { margin-top:8px; }
+  .notes-list { max-height:420px; overflow:auto; display:flex; flex-direction:column; gap:10px;}
+  .note-item { padding:10px; border-radius:10px; cursor:pointer; display:flex; gap:10px; align-items:flex-start; border:1px solid rgba(255,255,255,0.02); }
+  .note-item:hover { transform:translateY(-4px); box-shadow:0 14px 34px rgba(0,0,0,0.6); }
+  .small { font-size:12px; color:var(--muted); }
+  .timeline { display:flex; gap:12px; flex-direction:column; transform-style:preserve-3d; perspective:1200px;}
+  .tl-item { padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02); background:linear-gradient(180deg, rgba(255,255,255,0.008), rgba(255,255,255,0.003)); transform-origin:center; transition:transform 0.25s ease; }
+  .tl-item:hover{ transform: translateZ(40px) rotateX(2deg); box-shadow:0 24px 64px rgba(0,0,0,0.6); }
+  footer{ text-align:center; padding:18px; color:var(--muted); font-size:13px;}
+  input[type="text"], input[type="password"], select {
+    background:transparent; border:1px solid rgba(255,255,255,0.03); color:var(--text); padding:8px 10px; border-radius:8px;
+  }
+  .split { display:flex; gap:12px; align-items:center; }
+  .muted { color:var(--muted); }
+  @media (max-width:1000px){
+    .main{ flex-direction:column; align-items:center;}
+    .panel{ width:calc(100vw - 48px); }
+    .right-col{ width:calc(100vw - 48px); }
+  }
+</style>
+</head>
+<body class="mood-calm">
+
+<header>
+  <div class="logo">NEON NOTES QUANTUM</div>
+  <div class="muted sub">v3 — AI · Emotion · Vault · Timeline</div>
+</header>
+
+<main class="main">
+  <!-- Editor Panel -->
+  <section class="panel" id="editorPanel" onmousemove="parallax(event)">
+    <div class="toolbar">
+      <button class="btn primary" id="saveBtn">💾 Save Note</button>
+      <button class="btn" id="summBtn">🧠 Summarize</button>
+      <button class="btn" id="analyzeBtn">🔎 Analyze</button>
+      <button class="btn" id="encryptBtn">🔒 Encrypt Note</button>
+      <button class="btn" id="decryptBtn">🔓 Decrypt Note</button>
+      <button class="btn" id="voiceBtn">🎙️ Voice</button>
+      <button class="btn ghost" id="downloadBtn">⬇️ Download</button>
+      <div style="margin-left:auto" class="split">
+        <label class="small muted">Theme</label>
+        <select id="themeSelect">
+          <option value="calm">Calm</option>
+          <option value="happy">Happy</option>
+          <option value="focus">Focus</option>
+          <option value="sad">Sad</option>
+          <option value="angry">Angry</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="editor" id="noteBox" contenteditable="true" spellcheck="true" aria-label="Note editor">
+      Welcome to Neon Notes Quantum — start typing, speak, or paste. Use variables like x=10, y=4 to calculate.
+    </div>
+
+    <div class="row">
+      <div class="meta"><span id="charCount">0 chars</span><span id="wordCount">0 words</span></div>
+      <div class="meta" style="margin-left:auto"><span class="small muted">Last saved: <span id="lastSaved">never</span></span></div>
+    </div>
+
+    <div class="row">
+      <div class="small muted">Quick commands: say "summarize" or "encrypt" while voice mode is active.</div>
+    </div>
+
+    <div style="margin-top:12px" class="row">
+      <div class="card" style="flex:1">
+        <div class="small muted">Live Math Results</div>
+        <pre class="calc-output" id="calcOutput">No calculations yet.</pre>
+      </div>
+      <div class="card" style="width:260px">
+        <div class="small muted">Auto-tags</div>
+        <div class="tags" id="tagsArea"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px" class="row">
+      <div class="card" style="flex:1">
+        <div class="small muted">AI Summary</div>
+        <div class="summary-output" id="summaryOutput">No summary yet.</div>
+      </div>
+      <div class="card" style="width:260px">
+        <div class="small muted">Emotion</div>
+        <div id="emotionBadge" style="font-weight:700; margin-top:6px">Calm</div>
+        <div style="margin-top:8px;" class="small muted">Voice Mode / Status</div>
+        <div id="voiceStatus" class="small muted">Idle</div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Right Column -->
+  <aside class="right-col">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div><strong>Notes Library</strong><div class="small muted">Click to open</div></div>
+        <div><button class="btn" id="newNoteBtn">＋ New</button></div>
+      </div>
+      <div class="notes-list" id="notesList"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div><strong>Timeline</strong><div class="small muted">Memory Scroll</div></div>
+        <div><button class="btn" id="refreshTimeline">↻ Refresh</button></div>
+      </div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; gap:8px; align-items:center; justify-content:space-between;">
+        <div><strong>Search / Filter</strong><div class="small muted">Find words or tags</div></div>
+        <div><input id="searchInput" type="text" placeholder="search..." /></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="exportBtn">📦 Export JSON</button>
+        <button class="btn ghost" id="clearAllBtn">🗑️ Clear All</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  Neon Notes Quantum — built for demo & presentation. Runs fully in-browser. Use Chrome for best voice support.
+</footer>
+
+<script>
+
+   
+
+const STORAGE_KEY = 'nnq_notes_v3';
+let notes = []; // array of note objects
+let activeId = null;
+
+/* Helper utils */
+function uid(len=10){ return Math.random().toString(36).slice(2, 2+len); }
+function nowISO(){ return new Date().toISOString(); }
+function saveAll(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); updateUI(); }
+function loadAll(){ const raw = localStorage.getItem(STORAGE_KEY); notes = raw ? JSON.parse(raw) : []; updateUI(); }
+function escapeRegExp(string) { return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+/* DOM refs */
+const noteBox = document.getElementById('noteBox');
+const charCount = document.getElementById('charCount');
+const wordCount = document.getElementById('wordCount');
+const lastSaved = document.getElementById('lastSaved');
+const calcOutput = document.getElementById('calcOutput');
+const tagsArea = document.getElementById('tagsArea');
+const summaryOutput = document.getElementById('summaryOutput');
+const emotionBadge = document.getElementById('emotionBadge');
+const voiceStatus = document.getElementById('voiceStatus');
+const notesList = document.getElementById('notesList');
+const timelineEl = document.getElementById('timeline');
+const searchInput = document.getElementById('searchInput');
+
+/* Buttons */
+document.getElementById('saveBtn').onclick = saveNote;
+document.getElementById('newNoteBtn').onclick = newNote;
+document.getElementById('summBtn').onclick = () => generateSummary(true);
+document.getElementById('analyzeBtn').onclick = () => analyzeAndTag(true);
+document.getElementById('downloadBtn').onclick = downloadCurr;
+document.getElementById('encryptBtn').onclick = encryptCurrent;
+document.getElementById('decryptBtn').onclick = decryptCurrent;
+document.getElementById('voiceBtn').onclick = toggleVoice;
+document.getElementById('themeSelect').onchange = e => setMood(e.target.value);
+document.getElementById('refreshTimeline').onclick = buildTimeline;
+document.getElementById('exportBtn').onclick = exportJSON;
+document.getElementById('clearAllBtn').onclick = clearAll;
+document.getElementById('searchInput').oninput = () => renderNotes(searchInput.value.trim());
+
+/* Editor input handling */
+noteBox.addEventListener('input', () => {
+  updateCounts();
+  liveMath();            // improved math analysis
+  analyzeAndTag(false);  // quick tags + mood update (non-verbose)
+  autosaveDraft();
+});
+
+/* Initial load */
+loadAll();
+if(!notes.length) createDemo();
+if(!activeId) activeId = notes[0]?.id || null;
+openNote(activeId);
+updateCounts();
+setMood('calm');
+buildTimeline();
+
+/* Create new note */
+function newNote(){
+  const id = uid(12);
+  const obj = { id, title:'Untitled', content:'', tags:[], summary:'', emotion:'calm', encrypted:false, createdAt:nowISO(), updatedAt:nowISO() };
+  notes.unshift(obj);
+  saveAll();
+  openNote(id);
+  renderNotes();
+  buildTimeline();
+}
+
+/* Open note */
+function openNote(id){
+  activeId = id;
+  const n = notes.find(x=>x.id===id);
+  if(!n) return;
+  noteBox.innerText = n.encrypted ? '[Encrypted note — decrypt to view]' : (n.content || '');
+  updateCounts();
+  generateSummary(false);
+  analyzeAndTag(false);
+  lastSaved.innerText = n.updatedAt ? new Date(n.updatedAt).toLocaleString() : 'never';
+}
+
+/* Save note */
+function saveNote(){
+  if(!activeId){ newNote(); return; }
+  const n = notes.find(x=>x.id===activeId);
+  if(!n) return;
+  if(n.encrypted){ alert('Note is encrypted. Decrypt before saving content.'); return; }
+  n.content = noteBox.innerText;
+  n.updatedAt = nowISO();
+  n.title = (n.content.split('\n')[0] || 'Untitled').slice(0,38);
+  n.summary = summarizeText(n.content);
+  n.tags = extractTags(n.content);
+  n.emotion = detectEmotion(n.content);
+  saveAll();
+  lastSaved.innerText = new Date(n.updatedAt).toLocaleString();
+  buildTimeline();
+  voiceSpeak('Saved note');
+}
+
+/* Autosave draft (editor-level) */
+function autosaveDraft(){
+  localStorage.setItem('nnq_draft', noteBox.innerText);
+}
+
+/* Update character/word counters */
+function updateCounts(){
+  const text = noteBox.innerText || '';
+  charCount.innerText = `${text.length} chars`;
+  wordCount.innerText = `${text.trim().split(/\s+/).filter(Boolean).length} words`;
+}
+
+/* -----------------------------
+   Improved Math Evaluator
+   - Handles assignment expressions like `sohan = 100 + 200`
+   - Resolves dependent assignments across multiple passes
+   - Replaces variable names using word-boundary regex to avoid substrings
+   ----------------------------- */
+function liveMath(){
+  const raw = noteBox.innerText || '';
+  const lines = raw.split(/\n|,/).map(s=>s.trim()).filter(Boolean);
+  const assignments = [];     // {lhs, rhsRaw}
+  const exprLines = [];       // expressions without '='
+
+  // Separate assignment lines and expression lines
+  for(const line of lines){
+    if(line.includes('=')){
+      const parts = line.split('=');
+      const lhs = parts.shift().trim();
+      const rhs = parts.join('=').trim(); // in case rhs contains '='
+      if(lhs) assignments.push({lhs, rhsRaw: rhs});
+    } else {
+      exprLines.push(line);
+    }
+  }
+
+  const vars = {}; // resolved variable values
+
+  // Try to evaluate assignments iteratively (multi-pass)
+  const maxPasses = 8;
+  for(let pass=0; pass<maxPasses; pass++){
+    let progress = false;
+    for(const a of assignments){
+      if(vars.hasOwnProperty(a.lhs)) continue; // already resolved
+      // build RHS by replacing known vars
+      let candidate = a.rhsRaw;
+      for(const k in vars){
+        const r = new RegExp('\\b' + escapeRegExp(k) + '\\b', 'g');
+        candidate = candidate.replace(r, String(vars[k]));
+      }
+      // If candidate still contains obvious letters other than e (scientific notation) assume unresolved variables remain
+      const lettersRemain = /[a-df-zA-DF-Z_]/.test(candidate.replace(/e[+\-]?\d+/gi, '')); // allow 'e' in numbers
+      if(lettersRemain) continue;
+      try{
+        // Safe-ish numeric evaluation
+        const val = Function('"use strict"; return (' + candidate + ')')();
+        if(typeof val === 'number' && isFinite(val)){
+          vars[a.lhs] = val;
+          progress = true;
+        }
+      }catch(e){
+        // ignore and wait for further passes
+      }
+    }
+    if(!progress) break;
+  }
+
+  // Second pass: try to force-evaluate remaining assignments by replacing undefined vars with 0? 
+  // (We prefer not to guess — leave unresolved if still contains letters)
+  // Prepare output
+  let out = '';
+  // Show assignment results (resolved or unresolved)
+  for(const a of assignments){
+    if(vars.hasOwnProperty(a.lhs)){
+      out += `${a.lhs} = ${vars[a.lhs]}\n`;
+    } else {
+      // Attempt a last-resort replace with numeric-looking tokens only and try eval
+      let candidate = a.rhsRaw;
+      for(const k in vars){
+        const r = new RegExp('\\b' + escapeRegExp(k) + '\\b', 'g');
+        candidate = candidate.replace(r, String(vars[k]));
+      }
+      // If candidate looks numeric-expression, try evaluate
+      try{
+        const lettersRemain = /[a-df-zA-DF-Z_]/.test(candidate.replace(/e[+\-]?\d+/gi, ''));
+        if(!lettersRemain){
+          const val = Function('"use strict"; return (' + candidate + ')')();
+          if(typeof val === 'number' && isFinite(val)){
+            out += `${a.lhs} = ${val}\n`;
+            vars[a.lhs] = val;
+            continue;
+          }
+        }
+      }catch(e){}
+      out += `${a.lhs} = [unresolved]\n`;
+    }
+  }
+
+  // Evaluate plain expression lines (non-assignment)
+  for(const exprLine of exprLines){
+    let candidate = exprLine;
+    for(const k in vars){
+      const r = new RegExp('\\b' + escapeRegExp(k) + '\\b', 'g');
+      candidate = candidate.replace(r, String(vars[k]));
+    }
+    // If candidate still contains letters, skip
+    const lettersRemain = /[a-df-zA-DF-Z_]/.test(candidate.replace(/e[+\-]?\d+/gi, ''));
+    if(lettersRemain) continue;
+    try{
+      const val = Function('"use strict"; return (' + candidate + ')')();
+      if(typeof val === 'number' && isFinite(val)){
+        out += `${exprLine} = ${val}\n`;
+      }
+    }catch(e){
+      // ignore
+    }
+  }
+
+  calcOutput.innerText = out || 'No math detected.';
+}
+
+/* -----------------------------
+   Simple extractive summarizer & controls
+   ----------------------------- */
+function summarizeText(text, maxSentences=3){
+  if(!text) return '';
+  const sents = text.match( /[^\.!\?]+[\.!\?]*/g ) || [text];
+  const words = text.toLowerCase().match(/\b[a-z0-9']+\b/g) || [];
+  const stop = new Set(['the','is','and','a','to','of','in','it','for','on','that','with','as','this','i','you','we','they','be','are']);
+  const freq = {};
+  words.forEach(w=>{ if(!stop.has(w)) freq[w] = (freq[w]||0)+1; });
+  const scoreSent = sents.map(s=>{
+    const ws = (s.toLowerCase().match(/\b[a-z0-9']+\b/g) || []);
+    let sc=0; ws.forEach(w=>{ if(freq[w]) sc+=freq[w]; });
+    return {s,sc};
+  });
+  scoreSent.sort((a,b)=>b.sc-a.sc);
+  return scoreSent.slice(0,maxSentences).map(x=>x.s.trim()).join(' ');
+}
+function generateSummary(speak=false){
+  const text = noteBox.innerText;
+  const summary = summarizeText(text,3) || '—';
+  summaryOutput.innerText = summary;
+  if(speak) voiceSpeak('Summary ready');
+  if(activeId){
+    const n = notes.find(x=>x.id===activeId);
+    if(n && !n.encrypted){ n.summary = summary; n.updatedAt = nowISO(); saveAll(); }
+  }
+}
+
+/* -----------------------------
+   Tag extraction (simple)
+   ----------------------------- */
+function extractTags(text, max=8){
+  if(!text) return [];
+  const words = (text.toLowerCase().match(/\b[a-z]{3,}\b/g) || []);
+  const stop = new Set(['the','and','with','that','this','from','there','have','for','will','your','about','are','but','not','note']);
+  const freq = {};
+  words.forEach(w=>{ if(!stop.has(w)) freq[w]= (freq[w]||0)+1; });
+  const arr = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).slice(0,max);
+  tagsArea.innerHTML = arr.map(t=>`<span class="tag">${t}</span>`).join('');
+  return arr;
+}
+
+/* -----------------------------
+   Analyze content: tags + emotion
+   ----------------------------- */
+function analyzeAndTag(showAlert=true){
+  const text = noteBox.innerText;
+  const tags = extractTags(text);
+  const emotion = detectEmotion(text);
+  emotionBadge.innerText = emotion.charAt(0).toUpperCase() + emotion.slice(1);
+  setMood(emotion);
+  if(showAlert) voiceSpeak('Analysis complete');
+}
+
+/* -----------------------------
+   Emotion detection (simple rules)
+   ----------------------------- */
+function detectEmotion(text){
+  if(!text) return 'calm';
+  const pos = ['happy','joy','love','excellent','good','great','amazing','awesome','excited','fun','delight','progress','success'];
+  const neg = ['sad','angry','hate','tired','bad','upset','stress','worried','depressed','angry','frustrat','delay','lost'];
+  let score=0;
+  const w = (text.toLowerCase().match(/\b[a-z]{3,}\b/g) || []);
+  w.forEach(token=>{
+    if(pos.some(p => token.includes(p))) score += 2;
+    if(neg.some(n => token.includes(n))) score -= 2;
+  });
+  if(score >= 3) return 'happy';
+  if(score > 0) return 'calm';
+  if(score < 0 && score > -3) return 'sad';
+  if(score <= -3) return 'angry';
+  return 'focus';
+}
+
+/* -----------------------------
+   Mood UI
+   ----------------------------- */
+function setMood(mood){
+  document.body.classList.remove('mood-happy','mood-calm','mood-focus','mood-sad','mood-angry');
+  document.body.classList.add('mood-'+mood);
+  emotionBadge.innerText = mood.charAt(0).toUpperCase()+mood.slice(1);
+  const sel = document.getElementById('themeSelect');
+  if(sel && sel.value !== mood) sel.value = mood;
+}
+
+/* -----------------------------
+   Notes render & timeline
+   ----------------------------- */
+function renderNotes(filter=''){
+  notesList.innerHTML = '';
+  const list = notes.filter(n=>{
+    if(!filter) return true;
+    const f = filter.toLowerCase();
+    return (n.title||'').toLowerCase().includes(f) || (n.content||'').toLowerCase().includes(f) || (n.tags||[]).join(' ').includes(f);
+  });
+  list.forEach(n=>{
+    const el = document.createElement('div');
+    el.className = 'note-item';
+    el.innerHTML = `<div style="flex:1">
+                    <div style="font-weight:700">${n.title || 'Untitled'}</div>
+                    <div class="small muted">${n.summary ? n.summary.slice(0,120) : (n.content||'').slice(0,120)}</div>
+                   </div>
+                   <div style="text-align:right"><div class="small muted">${new Date(n.updatedAt||n.createdAt).toLocaleString()}</div>
+                   <div style="margin-top:8px">${ (n.tags||[]).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('') }</div></div>`;
+    el.onclick = ()=> openNote(n.id);
+    notesList.appendChild(el);
+  });
+}
+
+function buildTimeline(){
+  timelineEl.innerHTML = '';
+  notes.slice().sort((a,b)=> new Date(b.updatedAt||b.createdAt)-new Date(a.updatedAt||a.createdAt)).forEach(n=>{
+    const d = new Date(n.updatedAt||n.createdAt);
+    const el = document.createElement('div');
+    el.className = 'tl-item';
+    el.style.transform = `translateZ(${Math.min(60, Math.random()*80)}px) rotateX(${(Math.random()-0.5)*2}deg)`;
+    el.innerHTML = `<div style="display:flex;justify-content:space-between"><strong>${n.title||'Untitled'}</strong><span class="small muted">${d.toLocaleString()}</span></div>
+                    <div class="small muted" style="margin-top:8px">${n.summary || (n.content||'').slice(0,150)}</div>`;
+    el.onclick = ()=> openNote(n.id);
+    timelineEl.appendChild(el);
+  });
+  renderNotes(searchInput.value.trim());
+}
+
+/* -----------------------------
+   Export / Import / Clear
+   ----------------------------- */
+function exportJSON(){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(notes, null, 2)], {type:'application/json'}));
+  a.download = `nnq_export_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+function clearAll(){
+  if(!confirm('Clear all notes? This cannot be undone.')) return;
+  notes = [];
+  saveAll();
+  loadAll();
+  noteBox.innerText = '';
+  buildTimeline();
+}
+
+/* -----------------------------
+   Download current note
+   ----------------------------- */
+function downloadCurr(){
+  if(!activeId) return;
+  const n = notes.find(x=>x.id===activeId);
+  if(!n) return alert('No active note');
+  const blob = new Blob([n.encrypted ? '[Encrypted]' : n.content], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(n.title||'note').replace(/\s+/g,'_')}.txt`;
+  a.click();
+}
+
+/* -----------------------------
+   Parallax for panel
+   ----------------------------- */
+function parallax(e){
+  const p = e.currentTarget;
+  const rect = p.getBoundingClientRect();
+  const mx = ( (e.clientX - rect.left) / rect.width ) * 100;
+  const my = ( (e.clientY - rect.top) / rect.height ) * 100;
+  p.style.setProperty('--mx', mx + '%');
+  p.style.setProperty('--my', my + '%');
+}
+
+/* -----------------------------
+   Voice (SpeechRecognition & synthesis)
+   ----------------------------- */
+let recog=null, listening=false;
+function toggleVoice(){
+  if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
+    alert('Speech recognition not supported in this browser. Use Chrome.');
+    return;
+  }
+  if(listening){ stopVoice(); return; }
+  startVoice();
+}
+function startVoice(){
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recog = new SpeechRec();
+  recog.lang = 'en-US';
+  recog.interimResults = false;
+  recog.continuous = true;
+  recog.onstart = ()=>{ listening=true; voiceStatus.innerText='Listening...'; document.getElementById('voiceBtn').classList.add('primary'); }
+  recog.onend = ()=>{ listening=false; voiceStatus.innerText='Idle'; document.getElementById('voiceBtn').classList.remove('primary'); }
+  recog.onerror = (e)=>{ console.error(e); voiceStatus.innerText='Error: '+ (e.error || 'unknown'); }
+  recog.onresult = (ev)=>{
+    const text = ev.results[ev.results.length-1][0].transcript.trim();
+    voiceStatus.innerText = 'Heard: "'+text+'"';
+    const lc = text.toLowerCase();
+    if(lc.includes('summarize') || lc.includes('summary')){ generateSummary(true); return; }
+    if(lc.includes('encrypt')){ encryptCurrent(); return; }
+    if(lc.includes('decrypt')){ decryptCurrent(); return; }
+    if(lc.includes('new note')){ newNote(); return; }
+    noteBox.innerText += (noteBox.innerText ? '\n' : '') + text;
+    autosaveDraft();
+    liveMath();
+    analyzeAndTag(false);
+  };
+  recog.start();
+}
+function stopVoice(){ if(recog){ recog.stop(); recog = null; listening=false; voiceStatus.innerText='Idle'; document.getElementById('voiceBtn').classList.remove('primary'); } }
+function voiceSpeak(txt){
+  if(!window.speechSynthesis) return;
+  const ut = new SpeechSynthesisUtterance(txt);
+  ut.lang = 'en-US';
+  window.speechSynthesis.speak(ut);
+}
+
+/* -----------------------------
+   Encryption: AES-GCM + PBKDF2 helpers
+   ----------------------------- */
+async function getKeyFromPass(pass, saltHex){
+  const enc = new TextEncoder();
+  const passKey = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  const salt = hexToBuf(saltHex);
+  const derived = await crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations: 250000, hash:'SHA-256'},
+    passKey,
+    {name:'AES-GCM', length:256},
+    false,
+    ['encrypt','decrypt']
+  );
+  return derived;
+}
+function bufToHex(buf){
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function hexToBuf(hex){
+  const bytes = new Uint8Array(hex.match(/.{1,2}/g).map(b=>parseInt(b,16)));
+  return bytes.buffer;
+}
+function bufToBase64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function base64ToBuf(str){ const s = atob(str); const arr=new Uint8Array(s.length); for(let i=0;i<s.length;i++) arr[i]=s.charCodeAt(i); return arr.buffer; }
+
+async function encryptText(text, pass){
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations:250000, hash:'SHA-256'},
+    await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']),
+    {name:'AES-GCM', length:256},
+    false,
+    ['encrypt','decrypt']
+  );
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, enc.encode(text));
+  return { ciphertext: bufToBase64(ct), iv: bufToHex(iv.buffer), salt: bufToHex(salt.buffer) };
+}
+async function decryptText(ciphertextB64, ivHex, saltHex, pass){
+  try{
+    const key = await getKeyFromPass(pass, saltHex);
+    const ctBuf = base64ToBuf(ciphertextB64);
+    const ivBuf = hexToBuf(ivHex);
+    const dec = await crypto.subtle.decrypt({name:'AES-GCM', iv: new Uint8Array(ivBuf)}, key, ctBuf);
+    return new TextDecoder().decode(dec);
+  }catch(e){
+    throw new Error('Decryption failed');
+  }
+}
+
+async function encryptCurrent(){
+  if(!activeId) return alert('Open a note first');
+  const n = notes.find(x=>x.id===activeId);
+  if(!n) return;
+  if(n.encrypted) return alert('Already encrypted');
+  const pass = prompt('Enter passphrase to encrypt this note (remember it!)');
+  if(!pass) return;
+  const res = await encryptText(n.content, pass);
+  n.encrypted = true;
+  n.ciphertext = res.ciphertext;
+  n.iv = res.iv;
+  n.salt = res.salt;
+  n.content = '';
+  n.updatedAt = nowISO();
+  saveAll();
+  openNote(n.id);
+  voiceSpeak('Note encrypted');
+}
+
+async function decryptCurrent(){
+  if(!activeId) return alert('Open a note first');
+  const n = notes.find(x=>x.id===activeId);
+  if(!n) return;
+  if(!n.encrypted) return alert('Note is not encrypted');
+  const pass = prompt('Enter passphrase to decrypt this note');
+  if(!pass) return;
+  try{
+    const plain = await decryptText(n.ciphertext, n.iv, n.salt, pass);
+    n.encrypted = false;
+    n.content = plain;
+    delete n.ciphertext; delete n.iv; delete n.salt;
+    n.updatedAt = nowISO();
+    saveAll();
+    openNote(n.id);
+    voiceSpeak('Note decrypted');
+  }catch(e){
+    alert('Incorrect passphrase or corrupted data');
+    voiceSpeak('Decryption failed');
+  }
+}
+
+/* -----------------------------
+   Demo & draft restore
+   ----------------------------- */
+function createDemo(){
+  const sample = `Meeting notes: Project Nebula.
+x = 23
+y = 45
+Total = x + y * 2
+
+Action Items:
+- Prepare prototype
+- Contact partner
+I feel excited about progress and it's amazing to see results.`;
+  const id = uid(12);
+  notes.push({ id, title:'Project Nebula', content: sample, tags: extractTags(sample), summary: summarizeText(sample), emotion: detectEmotion(sample), encrypted:false, createdAt:nowISO(), updatedAt:nowISO() });
+  saveAll();
+}
+
+(function restoreDraft(){
+  const draft = localStorage.getItem('nnq_draft');
+  if(draft && (!noteBox.innerText || noteBox.innerText.trim().length <= 10)){ noteBox.innerText = draft; }
+})();
+
+/* -----------------------------
+   Final UI update & keyboard shortcuts
+   ----------------------------- */
+function updateUI(){
+  renderNotes(searchInput.value.trim());
+  buildTimeline();
+}
+window.addEventListener('beforeunload', ()=>{ if(recog) stopVoice(); });
+window.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); saveNote(); }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase() === 'n'){ e.preventDefault(); newNote(); }
+});
+
+/* Initial runs */
+updateUI();
+analyzeAndTag(false);
+generateSummary(false);
+liveMath();
+
+</script>
+
+
+</body>
+</html>
+
